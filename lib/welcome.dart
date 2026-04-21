@@ -18,7 +18,7 @@ class _hiiState extends State<hii> {
           height: double.infinity,
           width: double.infinity,
           decoration: BoxDecoration(
-            image: DecorationImage(image: MediaQuery.of(context).size.width>1000?AssetImage("o(1)c.png"):AssetImage("assets/o(1)p.png"),fit: BoxFit.cover)
+            image: DecorationImage(image: MediaQuery.of(context).size.width>1000?AssetImage("pc.png"):AssetImage("assets/e.png"),fit: BoxFit.cover)
           ),
           child:
                 SafeArea(
