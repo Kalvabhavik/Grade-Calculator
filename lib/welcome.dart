@@ -13,12 +13,13 @@ class _hiiState extends State<hii> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      debugShowCheckedModeBanner: false,
       home: Scaffold(
         body: Container(
           height: double.infinity,
           width: double.infinity,
           decoration: BoxDecoration(
-            image: DecorationImage(image: MediaQuery.of(context).size.width>1000?AssetImage("pc.png"):AssetImage("assets/e.png"),fit: BoxFit.cover)
+            image: DecorationImage(image: MediaQuery.of(context).size.width>1000?AssetImage("assets/pc.png"):AssetImage("assets/e.png"),fit: BoxFit.cover)
           ),
           child:
                 SafeArea(

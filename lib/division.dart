@@ -1,5 +1,7 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import "dart:io";
 
 class Super extends StatelessWidget {
 
@@ -12,6 +14,7 @@ class Super extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      debugShowCheckedModeBanner: false,
       home: Scaffold(
         appBar: AppBar(
           elevation: 10,
@@ -46,47 +49,100 @@ class Super extends StatelessWidget {
           ),
           height: double.infinity,
           width: double.infinity,
-          child: Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: ListView.builder(
-              itemCount: s.length,
-              itemBuilder: (context,index){
-                return Row(
+          child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(35, 25, 8, 10),
+                child: Row(
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Container(
+                    Container(
+                      height:40,
+                      width:100,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.white),
+                        borderRadius: BorderRadius.circular(50),
+                          gradient: LinearGradient(colors: [Colors.black,Colors.blue.shade900,Colors.black]),
+                        boxShadow: [BoxShadow(
+                          blurRadius: 8,
+                          spreadRadius: 1,
+                          color: Colors.white,
+                        )]
+                      ),
+                      child:Center(child: Text("DIVISION",style: TextStyle(color:Colors.white,fontSize: 18,),))
+                    ),
+                    SizedBox(
+                      width:60
+                    ),
+                    Container(
+                        height:40,
+                        width:60,
                         decoration: BoxDecoration(
-                          border: Border.all(
-                            color: Colors.white,
-                          ),
-                          borderRadius: BorderRadius.circular(20)
-                        ),
-                        height: 40,
-                        width: 100,
-                        child: Center(child: Text("${s[index]}",style: TextStyle(color: Colors.white),)),
-
-                      ),
+                          gradient: LinearGradient(colors: [Colors.black,Colors.blue.shade900,Colors.black]),
+                            border: Border.all(color: Colors.white),
+                            borderRadius: BorderRadius.circular(50),
+                          boxShadow: [BoxShadow(
+                          blurRadius: 8,
+                          spreadRadius: 1,
+                          color: Colors.white,
+                        )]
                     ),
-                    Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Container(decoration: BoxDecoration(
-                          border: Border.all(
-                            color: Colors.white,
-                          ),
-                          borderRadius: BorderRadius.circular(20)
-                      ),
-
-                        height: 40,
-                        width: 40,
-                        child: Center(child: Text("${bu[index]}",style: TextStyle(color:Colors.white),)),
-
-                      ),
-                    ),
+                        child:Center(child: Text("%",style: TextStyle(color:Colors.white,fontSize: 18,),))
+                    )
                   ],
-                );
-              },
-            ),
+                ),
+              ),
+
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Container(
+                  height: 400,
+                  width: 400,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(3,0,8,0),
+                    child: ListView.builder(
+                      itemCount: s.length,
+                      itemBuilder: (context,index){
+                        return Row(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(10,0,8,15),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                    color: Colors.white,
+                                  ),
+                                  borderRadius: BorderRadius.circular(20)
+                                ),
+                                height: 60,
+                                width: 200,
+                                child: Center(child: Text("${s[index]}",style: TextStyle(color: Colors.white,fontSize: 25),)),
+
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: Container(decoration: BoxDecoration(
+                                  border: Border.all(
+                                    color: Colors.white,
+                                  ),
+                                  borderRadius: BorderRadius.circular(20)
+                              ),
+
+                                height: 50,
+                                width: 80,
+                                child: Center(child: Text("${bu[index]}",style: TextStyle(color:Colors.white),)),
+
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),

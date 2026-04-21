@@ -38,6 +38,7 @@ dependencies:
   google_fonts: ^8.0.2
   email_otp: ^3.1.0
   emailjs: ^4.0.0
+  file_picker: ^11.0.2
 
 dev_dependencies:
   flutter_test:
