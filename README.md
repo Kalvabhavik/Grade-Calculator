@@ -16,17 +16,18 @@ matching, and user-overridable AI column mappings.
 The backend is designed to deploy as a Render Blueprint.
 
 1. Go to Render → **New +** → **Blueprint**.
-2. Connect this repo. Render will auto-detect `backend/flask/render.yaml`
-   and offer to create a service called `grade-calc-api`.
+2. Connect this repo. Render will auto-detect `render.yaml` at the repo
+   root and offer to create a service called `grade-calculator-api`
+   with its root at `backend/flask`.
 3. Click **Apply**. Render will build with `pip install -r requirements.txt`
    and run `gunicorn --bind 0.0.0.0:$PORT --workers 2 --timeout 120 app:app`.
 4. When the service goes live, copy its public URL
-   (e.g. `https://grade-calc-api-abcd.onrender.com`).
+   (e.g. `https://grade-calculator-api-abcd.onrender.com`).
 5. Rebuild the Flutter app with that URL:
 
    ```bash
    flutter build web \
-     --dart-define=API_URL=https://grade-calc-api-abcd.onrender.com/api
+     --dart-define=API_URL=https://grade-calculator-api-abcd.onrender.com/api
    ```
 
    (Note the `/api` suffix — all routes live under `/api/*`.)
@@ -52,13 +53,14 @@ flutter run -d chrome \
 ## Project structure
 
 ```
+render.yaml       Render Blueprint (at repo root; deploys backend/flask/)
+
 backend/flask/    Flask REST API + grading pipeline
   app.py            endpoints
   matching.py       fuzzy column matcher (synonym table + RapidFuzz)
   sheet_parser.py   reads individual + team sheets, detects Max Marks & Weight %
   grading.py        μ±σ curves (strict/moderate/lenient/bellcurve/flat/manual)
   excel_writer.py   generates graded output workbook
-  render.yaml       Render Blueprint deploy config
 
 lib/              Flutter app
   dashboard.dart    scope + division name entry
