@@ -16,11 +16,18 @@ String _deptCode(String dept) {
   }
 }
 
+/// Register-number range (inclusive) per department / section.
+///
+/// CSE-A : 25BCS001 .. 25BCS107 (107 students)
+/// CSE-B : 25BCS108 .. 25BCS215 (108 students)
+/// CSE   : 25BCS001 .. 25BCS215 (both sections)
+/// ECE   : 25BEC001 .. 25BEC080 (80 students)
+/// DSAI  : 25BDA001 .. 25BDA110 (110 students)
 (int, int) _regRange(String dept, String? section) {
   switch (dept.toUpperCase()) {
     case 'CSE':
       if (section == 'A') return (1, 107);
-      if (section == 'B') return (107, 215);
+      if (section == 'B') return (108, 215);
       return (1, 215);
     case 'ECE':
       return (1, 80);
@@ -45,6 +52,12 @@ CellStyle _maxMarksStyle() => CellStyle(
       bold: true,
       fontColorHex: ExcelColor.fromHexString('#7B3F00'),
       backgroundColorHex: ExcelColor.fromHexString('#FFF2CC'),
+    );
+
+CellStyle _weightStyle() => CellStyle(
+      bold: true,
+      fontColorHex: ExcelColor.fromHexString('#1F3864'),
+      backgroundColorHex: ExcelColor.fromHexString('#D9E1F2'),
     );
 
 CellStyle _lockedStyle() => CellStyle(
@@ -72,11 +85,17 @@ String _cleanSheetName(String raw) {
 }
 
 class ExcelService {
+  /// Build the per-student Excel template.
+  ///
+  /// The template now carries **both** Max Marks and Weight % rows so the
+  /// instructor can fill everything inside Excel instead of re-typing it in
+  /// the app. [divisionNames] is a plain list — no weights are needed from
+  /// the UI anymore.
   static Uint8List generateIndividualTemplate({
     required String batch,
     required String dept,
     String? section,
-    required Map<String, int> divisions,
+    required List<String> divisionNames,
   }) {
     final excel = Excel.createExcel();
     final sheetName = _cleanSheetName(
@@ -88,22 +107,31 @@ class ExcelService {
     final prefix = _batchPrefix(batch);
     final deptCode = _deptCode(dept);
     final (start, end) = _regRange(dept, section);
-    final divisionNames = divisions.keys.toList();
 
+    // Row 0 — column headers
     _writeCell(sheet, 0, 0, 'Reg No', _headerStyle());
     _writeCell(sheet, 0, 1, 'Student Name', _headerStyle());
     for (int i = 0; i < divisionNames.length; i++) {
       _writeCell(sheet, 0, i + 2, divisionNames[i], _headerStyle());
     }
 
+    // Row 1 — Max Marks (fill inside Excel)
     _writeCell(sheet, 1, 0, '', _maxMarksStyle());
     _writeCell(sheet, 1, 1, 'Max Marks', _maxMarksStyle());
     for (int i = 0; i < divisionNames.length; i++) {
       _writeCell(sheet, 1, i + 2, '', _maxMarksStyle());
     }
 
+    // Row 2 — Weight % (fill inside Excel; must sum to 100)
+    _writeCell(sheet, 2, 0, '', _weightStyle());
+    _writeCell(sheet, 2, 1, 'Weight %', _weightStyle());
+    for (int i = 0; i < divisionNames.length; i++) {
+      _writeCell(sheet, 2, i + 2, '', _weightStyle());
+    }
+
+    // Rows 3+ — students
     for (int regIndex = start; regIndex <= end; regIndex++) {
-      final row = 2 + regIndex - start;
+      final row = 3 + regIndex - start;
       _writeCell(sheet, row, 0, _regNo(prefix, deptCode, regIndex), _lockedStyle());
       _writeCell(sheet, row, 1, '', _lockedStyle());
       for (int i = 0; i < divisionNames.length; i++) {
@@ -120,11 +148,13 @@ class ExcelService {
     return Uint8List.fromList(excel.encode()!);
   }
 
+  /// Build the per-team Excel template (used for project, seminar, hackathons, …).
   static Uint8List generateTeamTemplate({
     required String batch,
     required String dept,
     String? section,
-    required Map<String, int> teamDivisions,
+    required List<String> teamDivisionNames,
+    int teamRows = 40,
   }) {
     final excel = Excel.createExcel();
     final sheetName = _cleanSheetName(
@@ -132,28 +162,38 @@ class ExcelService {
     );
     excel.rename('Sheet1', sheetName);
     final sheet = excel[sheetName];
-    final divisionNames = teamDivisions.keys.toList();
 
+    // Row 0 — headers
     _writeCell(sheet, 0, 0, 'Team ID', _headerStyle());
     _writeCell(sheet, 0, 1, 'Team Name', _headerStyle());
     _writeCell(sheet, 0, 2, 'Members Reg Nos', _headerStyle());
-    for (int i = 0; i < divisionNames.length; i++) {
-      _writeCell(sheet, 0, i + 3, divisionNames[i], _headerStyle());
+    for (int i = 0; i < teamDivisionNames.length; i++) {
+      _writeCell(sheet, 0, i + 3, teamDivisionNames[i], _headerStyle());
     }
 
+    // Row 1 — Max Marks
     _writeCell(sheet, 1, 0, '', _maxMarksStyle());
     _writeCell(sheet, 1, 1, '', _maxMarksStyle());
     _writeCell(sheet, 1, 2, 'Max Marks', _maxMarksStyle());
-    for (int i = 0; i < divisionNames.length; i++) {
+    for (int i = 0; i < teamDivisionNames.length; i++) {
       _writeCell(sheet, 1, i + 3, '', _maxMarksStyle());
     }
 
-    for (int i = 0; i < 40; i++) {
-      final row = i + 2;
+    // Row 2 — Weight %
+    _writeCell(sheet, 2, 0, '', _weightStyle());
+    _writeCell(sheet, 2, 1, '', _weightStyle());
+    _writeCell(sheet, 2, 2, 'Weight %', _weightStyle());
+    for (int i = 0; i < teamDivisionNames.length; i++) {
+      _writeCell(sheet, 2, i + 3, '', _weightStyle());
+    }
+
+    // Rows 3+ — teams
+    for (int i = 0; i < teamRows; i++) {
+      final row = i + 3;
       _writeCell(sheet, row, 0, 'T${(i + 1).toString().padLeft(3, '0')}', _lockedStyle());
       _writeCell(sheet, row, 1, '', _hintStyle());
       _writeCell(sheet, row, 2, '', _hintStyle());
-      for (int d = 0; d < divisionNames.length; d++) {
+      for (int d = 0; d < teamDivisionNames.length; d++) {
         _writeCell(sheet, row, d + 3, '', _hintStyle());
       }
     }
@@ -161,7 +201,7 @@ class ExcelService {
     sheet.setColumnWidth(0, 12);
     sheet.setColumnWidth(1, 22);
     sheet.setColumnWidth(2, 34);
-    for (int i = 0; i < divisionNames.length; i++) {
+    for (int i = 0; i < teamDivisionNames.length; i++) {
       sheet.setColumnWidth(i + 3, 16);
     }
 

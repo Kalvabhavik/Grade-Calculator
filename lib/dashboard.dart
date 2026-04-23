@@ -11,32 +11,27 @@ class dash extends StatefulWidget {
 
 class _dashState extends State<dash> {
   final TextEditingController _divcontroller = TextEditingController();
-  final TextEditingController _percontroller = TextEditingController();
   bool com = false;
-  int buc = 0;
   int count = 0;
 
   int num = 5;
   int b = 4;
   int c = 3;
 
-  // Parallel lists: division names and their percentages
+  // Division names only — Max Marks and Weight % now live inside the
+  // downloaded Excel template, not in the UI.
   List<String> s = [];
-  List<String> bu = [];
 
   @override
   void dispose() {
     _divcontroller.dispose();
-    _percontroller.dispose();
     super.dispose();
   }
 
-  // ── Delete a division entry and update the running sum ──
+  // ── Delete a division entry ──
   void _deleteDivision(int index) {
     setState(() {
-      buc -= int.tryParse(bu[index]) ?? 0;
       s.removeAt(index);
-      bu.removeAt(index);
       count = s.length;
     });
   }
@@ -45,18 +40,14 @@ class _dashState extends State<dash> {
   void _clearAll() {
     setState(() {
       s.clear();
-      bu.clear();
-      buc = 0;
       count = 0;
       _divcontroller.clear();
-      _percontroller.clear();
     });
   }
 
   // ── Add division with validation ──
   void _addDivision() {
     final String div = _divcontroller.text.trim();
-    final String per = _percontroller.text.trim();
 
     if (div.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -64,21 +55,7 @@ class _dashState extends State<dash> {
       );
       return;
     }
-    final int? parsed = int.tryParse(per);
-    if (parsed == null || parsed <= 0 || parsed > 100) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Percentage must be a number between 1 and 100"), backgroundColor: Colors.red.shade700),
-      );
-      return;
-    }
-    if (buc + parsed > 100) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Total exceeds 100%. Remaining: ${100 - buc}%"), backgroundColor: Colors.orange.shade700),
-      );
-      return;
-    }
-    // B13 FIX: reject duplicate division names
-    if (s.contains(div)) {
+    if (s.any((existing) => existing.toLowerCase() == div.toLowerCase())) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Division '$div' already added"), backgroundColor: Colors.red.shade700),
       );
@@ -86,19 +63,20 @@ class _dashState extends State<dash> {
     }
     setState(() {
       s.add(div);
-      bu.add(per);
-      buc += parsed;
       count = s.length;
       _divcontroller.clear();
-      _percontroller.clear();
     });
   }
 
-  // ── Determine % bar colour ──
-  Color _bucColor() {
-    if (buc < 80) return Colors.blue.shade400;
-    if (buc < 100) return Colors.orange.shade400;
-    return Colors.green.shade400;
+  /// Resolve current chip selections to `(batch, dept, section?)` tuple.
+  (String, String, String?) _selection() {
+    const batches = ['22-26', '23-27', '24-28', '25-29'];
+    const depts = ['CSE', 'ECE', 'DSAI'];
+    final batchStr = num < batches.length ? batches[num] : '25-29';
+    final deptStr = b < depts.length ? depts[b] : 'CSE';
+    // section only for CSE-A (c==0) or CSE-B (c==1); BOTH → null
+    final secStr = (b == 0 && c < 2) ? ['A', 'B'][c] : null;
+    return (batchStr, deptStr, secStr);
   }
 
   @override
@@ -178,6 +156,8 @@ class _dashState extends State<dash> {
                           num = num != entry[0] ? entry[0] as int : 5;
                           // reset deeper selections when batch changes
                           if (num == 5) { b = 4; c = 3; com = false; }
+                          // reset division inputs when leaving scope
+                          if (num == 5) { s.clear(); count = 0; }
                         }),
                         isWide: isWide,
                       ),
@@ -278,7 +258,8 @@ class _dashState extends State<dash> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              "Divisions   ($count added)",
+                              "Divisions   ($count added)  —  names only",
+
                               style: GoogleFonts.inconsolata(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
@@ -295,31 +276,26 @@ class _dashState extends State<dash> {
                           ],
                         ),
 
-                        // ── % progress bar ──
                         const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: LinearProgressIndicator(
-                                  value: buc / 100,
-                                  minHeight: 10,
-                                  backgroundColor: Colors.grey.shade300,
-                                  valueColor: AlwaysStoppedAnimation<Color>(_bucColor()),
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.shade50,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: Colors.amber.shade200),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.info_outline, size: 16, color: Colors.amber.shade900),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  "Max Marks and Weight % now live inside the Excel template — enter just the division names here.",
+                                  style: TextStyle(color: Colors.amber.shade900, fontSize: 11, fontWeight: FontWeight.w500),
                                 ),
                               ),
-                            ),
-                            const SizedBox(width: 10),
-                            Text(
-                              "$buc / 100%",
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: _bucColor(),
-                                fontSize: 13,
-                              ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
 
                         const SizedBox(height: 14),
@@ -357,18 +333,6 @@ class _dashState extends State<dash> {
                                     trailing: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                          decoration: BoxDecoration(
-                                            color: Colors.blue.shade800,
-                                            borderRadius: BorderRadius.circular(20),
-                                          ),
-                                          child: Text(
-                                            "${bu[i]}%",
-                                            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 6),
                                         // ── DELETE BUTTON ──
                                         GestureDetector(
                                           onTap: () => _deleteDivision(i),
@@ -394,25 +358,15 @@ class _dashState extends State<dash> {
                           const SizedBox(height: 8),
                         ],
 
-                        // ── Input fields ──
+                        // ── Input field (name only) ──
                         TextField(
                           controller: _divcontroller,
+                          onSubmitted: (_) => _addDivision(),
                           decoration: InputDecoration(
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
                             labelText: "Division name",
-                            hintText: "e.g. CSE-A, Div-1 …",
+                            hintText: "e.g. Mid Sem, End Sem, Lab, Project …",
                             prefixIcon: Icon(Icons.label_outline, color: Colors.blue.shade700),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        TextField(
-                          controller: _percontroller,
-                          keyboardType: TextInputType.number,
-                          decoration: InputDecoration(
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-                            labelText: "Percentage",
-                            hintText: "e.g. 40  (remaining: ${100 - buc}%)",
-                            prefixIcon: Icon(Icons.percent, color: Colors.blue.shade700),
                           ),
                         ),
                         const SizedBox(height: 14),
@@ -426,7 +380,7 @@ class _dashState extends State<dash> {
                           ),
                           icon: const Icon(Icons.add_circle_outline),
                           label: const Text("Add Division", style: TextStyle(fontSize: 15)),
-                          onPressed: buc < 100 ? _addDivision : null,
+                          onPressed: _addDivision,
                         ),
                       ],
                     ),
@@ -436,9 +390,9 @@ class _dashState extends State<dash> {
               const SizedBox(height: 20),
 
               // ─────────────────────────────────────────────────────────
-              //  "NEXT STEP" BUTTON — enabled only when total == 100%
+              //  "NEXT STEP" BUTTONS — enabled when at least one division added
               // ─────────────────────────────────────────────────────────
-              if (com && s.isNotEmpty)
+              if (com)
                 Padding(
                   padding: isWide
                       ? const EdgeInsets.fromLTRB(5, 0, 700, 0)
@@ -446,56 +400,69 @@ class _dashState extends State<dash> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      if (buc != 100)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Text(
-                            buc < 100
-                                ? "⚠️  Total is $buc%. Add ${100 - buc}% more to proceed."
-                                : "✅  Total is exactly 100% — ready!",
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: buc < 100 ? Colors.orange.shade300 : Colors.green.shade300,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ),
                       ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: buc == 100 ? Colors.white : Colors.grey.shade600,
+                          backgroundColor: s.isNotEmpty ? Colors.white : Colors.grey.shade600,
                           foregroundColor: Colors.black,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                         ),
-                        onPressed: buc == 100
-                            ? () {
-                                const batches  = ['22-26', '23-27', '24-28', '25-29'];
-                                const depts    = ['CSE', 'ECE', 'DSAI'];
-                                final batchStr = num < batches.length ? batches[num] : '25-29';
-                                final deptStr  = b < depts.length    ? depts[b]    : 'CSE';
-                                // section only for CSE-A (c==0) or CSE-B (c==1); BOTH → null
-                                final secStr   = (b == 0 && c < 2) ? ['A', 'B'][c] : null;
+                        onPressed: s.isEmpty
+                            ? null
+                            : () {
+                                final (batchStr, deptStr, secStr) = _selection();
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
                                     builder: (_) => Super(
-                                      s: s, bu: bu,
+                                      s: s,
                                       batch: batchStr,
                                       department: deptStr,
                                       section: secStr,
                                     ),
                                   ),
                                 );
-                              }
-                            : null,
+                              },
                         child: Text(
                           "Next Step  →",
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: buc == 100 ? Colors.black : Colors.grey.shade400,
+                            color: s.isNotEmpty ? Colors.black : Colors.grey.shade400,
                           ),
                         ),
+                      ),
+                      const SizedBox(height: 12),
+                      // ─── AI shortcut: skip template + upload directly ───
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          side: const BorderSide(color: Colors.white70),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        ),
+                        icon: const Icon(Icons.auto_awesome, color: Colors.amberAccent),
+                        label: const Text(
+                          "Skip template — upload my own Excel (AI)",
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                        ),
+                        onPressed: s.isEmpty
+                            ? null
+                            : () {
+                                final (batchStr, deptStr, secStr) = _selection();
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => Super(
+                                      s: s,
+                                      batch: batchStr,
+                                      department: deptStr,
+                                      section: secStr,
+                                      startInAiMode: true,
+                                    ),
+                                  ),
+                                );
+                              },
                       ),
                     ],
                   ),

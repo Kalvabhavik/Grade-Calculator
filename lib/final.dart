@@ -14,7 +14,16 @@ class ProcessGradesPage extends StatefulWidget {
   final Map<String, int> divisions;
   final String templateId;
   final Map<String, String>? manualBoundaries;
-  const ProcessGradesPage({super.key, required this.divisions, required this.templateId, this.manualBoundaries});
+  final bool startInAiMode;
+  final String? scope;
+  const ProcessGradesPage({
+    super.key,
+    required this.divisions,
+    required this.templateId,
+    this.manualBoundaries,
+    this.startInAiMode = false,
+    this.scope,
+  });
   @override
   State<ProcessGradesPage> createState() => _ProcessGradesPageState();
 }
@@ -40,6 +49,12 @@ class _ProcessGradesPageState extends State<ProcessGradesPage> with TickerProvid
 
   // AI mode toggle
   bool _aiMode = false;
+  // Uploaded file id — reused if the user wants a mapping preview before
+  // triggering /calculate-grades.
+  String? _lastFileId;
+  List<dynamic>? _detectedSheets;
+  // Overrides keyed by sheet name → division → header.
+  final Map<String, Map<String, String>> _mappingOverride = {};
 
   void _reset() {
     setState(() {
@@ -58,6 +73,10 @@ class _ProcessGradesPageState extends State<ProcessGradesPage> with TickerProvid
   void initState() {
     super.initState();
     _tabCtrl = TabController(length: 6, vsync: this);
+    _aiMode = widget.startInAiMode;
+    if (widget.startInAiMode) {
+      _status = 'AI mode: upload any Excel and we will auto-grade it.';
+    }
   }
 
   @override
@@ -114,13 +133,35 @@ class _ProcessGradesPageState extends State<ProcessGradesPage> with TickerProvid
         throw Exception('Upload failed (HTTP ${up.statusCode}): $uploadText');
       }
       final upData = json.decode(uploadText);
+      _lastFileId = upData['file_id'] as String?;
+
+      // Fetch AI-detected column mapping so the UI can preview it before
+      // calculating grades. We do this even in template mode — if any
+      // division didn't match an Excel column, warn the user.
+      try {
+        final det = await http.post(
+          Uri.parse('$url/detect'),
+          headers: {'Content-Type': 'application/json'},
+          body: json.encode({
+            'file_id': _lastFileId,
+            'divisions': widget.divisions,
+          }),
+        );
+        if (det.statusCode == 200) {
+          final j = json.decode(det.body);
+          _detectedSheets = j['sheets'] as List<dynamic>?;
+        }
+      } catch (_) {
+        // detect endpoint may not exist on older backends — ignore
+      }
 
       final body = {
-        'file_id': upData['file_id'],
+        'file_id': _lastFileId,
         'divisions': widget.divisions,
         'distribution_type': widget.templateId == 'manual' ? 'manual' : 'template',
         'template_id': widget.templateId,
         'auto_detect': autoDetect,
+        if (_mappingOverride.isNotEmpty) 'mapping_override': _mappingOverride,
         if (widget.templateId == 'manual' && widget.manualBoundaries != null)
           'manual_boundaries': widget.manualBoundaries,
       };
@@ -611,8 +652,17 @@ class _ProcessGradesPageState extends State<ProcessGradesPage> with TickerProvid
       appBar: AppBar(
         backgroundColor: Colors.transparent, elevation: 0,
         leading: BackButton(color: Colors.white),
-        title: Text("Grade Analytics", style: GoogleFonts.inconsolata(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+        title: Text(
+          widget.scope == null ? "Grade Analytics" : "Grade Analytics — ${widget.scope}",
+          style: GoogleFonts.inconsolata(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+        ),
         actions: [
+          if (!_isProcessing && _detectedSheets != null)
+            TextButton.icon(
+              onPressed: _showMappingPreview,
+              icon: const Icon(Icons.auto_awesome, color: Colors.amberAccent, size: 16),
+              label: const Text("AI Mapping", style: TextStyle(color: Colors.amberAccent, fontSize: 13)),
+            ),
           if (!_isProcessing && hasData)
             TextButton.icon(
               onPressed: _reset,
@@ -920,4 +970,217 @@ class _ProcessGradesPageState extends State<ProcessGradesPage> with TickerProvid
     const SizedBox(width: 6),
     Text(label, style: TextStyle(color: color, fontSize: 12)),
   ]);
+
+  // ── AI column-mapping preview dialog ──────────────────────────────
+  // Lets the user see exactly how the backend matched the division names
+  // they entered to the columns in the uploaded Excel, and lets them
+  // override the mapping if the AI guessed wrong.
+  void _showMappingPreview() {
+    final sheets = _detectedSheets;
+    if (sheets == null || sheets.isEmpty) return;
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogCtx) => StatefulBuilder(builder: (dialogCtx, setDialogState) {
+        return Dialog(
+          backgroundColor: const Color(0xFF0D1B3E),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          insetPadding: const EdgeInsets.all(20),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 540, maxHeight: 600),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  const Icon(Icons.auto_awesome, color: Colors.amberAccent, size: 22),
+                  const SizedBox(width: 8),
+                  const Expanded(child: Text("AI Column Mapping",
+                      style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold))),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white54),
+                    onPressed: () => Navigator.pop(dialogCtx),
+                  ),
+                ]),
+                const Text(
+                  "This is how the AI matched your division names to the columns in your Excel. "
+                  "Tap any row to override the match if it guessed wrong.",
+                  style: TextStyle(color: Colors.white54, fontSize: 12),
+                ),
+                const SizedBox(height: 14),
+                Expanded(
+                  child: ListView(children: [
+                    for (final sheet in sheets) _mappingSheetCard(sheet, setDialogState),
+                  ]),
+                ),
+                const SizedBox(height: 12),
+                Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogCtx),
+                    child: const Text("Close", style: TextStyle(color: Colors.white54)),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade700),
+                    icon: const Icon(Icons.refresh, size: 16, color: Colors.white),
+                    label: const Text("Re-grade with overrides", style: TextStyle(color: Colors.white)),
+                    onPressed: _mappingOverride.isEmpty
+                        ? null
+                        : () {
+                            Navigator.pop(dialogCtx);
+                            _recalculateWithOverrides();
+                          },
+                  ),
+                ]),
+              ]),
+            ),
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _mappingSheetCard(Map<String, dynamic> sheet, StateSetter setDialogState) {
+    final name = sheet['sheet_name'] as String? ?? '';
+    final isTeam = sheet['is_team_sheet'] == true;
+    final available = List<String>.from(
+        (sheet['division_columns'] as List<dynamic>? ?? []).map((e) => e.toString()));
+    final mapping = Map<String, dynamic>.from(sheet['mapping'] as Map? ?? {});
+    final confidence = Map<String, dynamic>.from(sheet['confidence'] as Map? ?? {});
+    final current = _mappingOverride[name] ?? {};
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(isTeam ? Icons.groups : Icons.person, color: Colors.blue.shade200, size: 16),
+          const SizedBox(width: 6),
+          Expanded(child: Text(name,
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13))),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: (isTeam ? Colors.purple : Colors.blue).shade800,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(isTeam ? 'TEAM' : 'INDIVIDUAL',
+                style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
+          ),
+        ]),
+        const SizedBox(height: 10),
+        ...mapping.entries.map((e) {
+          final division = e.key;
+          final guessed = e.value as String?;
+          final overridden = current[division];
+          final effective = overridden ?? guessed;
+          final score = (confidence[division] as num?)?.toDouble() ?? 0.0;
+          final scoreColor = score >= 90
+              ? Colors.green.shade300
+              : score >= 70
+                  ? Colors.amber.shade300
+                  : Colors.red.shade300;
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(children: [
+              Expanded(
+                flex: 2,
+                child: Text(division,
+                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500)),
+              ),
+              const Icon(Icons.arrow_forward, color: Colors.white30, size: 14),
+              const SizedBox(width: 6),
+              Expanded(
+                flex: 3,
+                child: DropdownButton<String?>(
+                  value: available.contains(effective) ? effective : null,
+                  hint: const Text('(no match)', style: TextStyle(color: Colors.red, fontSize: 12)),
+                  isExpanded: true,
+                  dropdownColor: const Color(0xFF0D1B3E),
+                  iconSize: 16,
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                  underline: const SizedBox.shrink(),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('(ignore)', style: TextStyle(color: Colors.white38, fontSize: 12)),
+                    ),
+                    ...available.map((h) => DropdownMenuItem<String?>(
+                          value: h,
+                          child: Text(h, overflow: TextOverflow.ellipsis),
+                        )),
+                  ],
+                  onChanged: (newVal) => setDialogState(() {
+                    final sheetOverrides = _mappingOverride.putIfAbsent(name, () => {});
+                    if (newVal == null) {
+                      sheetOverrides.remove(division);
+                    } else {
+                      sheetOverrides[division] = newVal;
+                    }
+                    if (sheetOverrides.isEmpty) _mappingOverride.remove(name);
+                  }),
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 40,
+                child: Text('${score.toStringAsFixed(0)}%',
+                    textAlign: TextAlign.right,
+                    style: TextStyle(color: scoreColor, fontSize: 11, fontWeight: FontWeight.bold)),
+              ),
+            ]),
+          );
+        }),
+      ]),
+    );
+  }
+
+  Future<void> _recalculateWithOverrides() async {
+    final fileId = _lastFileId;
+    if (fileId == null) return;
+    setState(() {
+      _isProcessing = true;
+      _status = 'Recalculating with your overrides…';
+      _lastError = null;
+      _chartData = [];
+    });
+    try {
+      final body = {
+        'file_id': fileId,
+        'divisions': widget.divisions,
+        'template_id': widget.templateId,
+        'auto_detect': _aiMode,
+        'mapping_override': _mappingOverride,
+        if (widget.templateId == 'manual' && widget.manualBoundaries != null)
+          'manual_boundaries': widget.manualBoundaries,
+      };
+      final calc = await http.post(
+        Uri.parse('$url/calculate-grades'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode(body),
+      );
+      if (calc.statusCode != 200) {
+        throw Exception('Recalc failed (HTTP ${calc.statusCode}): ${calc.body}');
+      }
+      final d = json.decode(calc.body);
+      setState(() {
+        _isProcessing = false;
+        _status = 'Grades recalculated with your overrides.';
+        _downloadUrl = '${url.replaceAll('/api', '')}${d['download_url']}';
+        _chartData = d['chart_data'] ?? [];
+        _stats = Map<String, dynamic>.from(d['stats'] ?? {});
+        _divisionBreakdown = d['division_breakdown'] ?? {};
+      });
+    } catch (e) {
+      setState(() {
+        _isProcessing = false;
+        _lastError = e.toString().replaceFirst('Exception: ', '');
+        _status = 'Error occurred.';
+      });
+    }
+  }
 }
