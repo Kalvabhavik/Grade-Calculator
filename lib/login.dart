@@ -248,25 +248,37 @@ class _meeState extends State<mee> with TickerProviderStateMixin{
                           style: GoogleFonts.aboreto(
                             color: Colors.white60,
                           ),
-                          onSubmitted: (val){
-
-
-                            showAdaptiveDialog(context: context,builder:(BuildContext context) {
-                              return Dialog(
-                                  backgroundColor:Colors.transparent,
-                                  child:Container(
-                                      height:140,
+                          onSubmitted: (val) {
+                            // Validate OTP on keyboard submit — same logic as LOGIN button
+                            if (val.trim() == generatedOtp) {
+                              showAdaptiveDialog(
+                                context: context,
+                                builder: (BuildContext context) {
+                                  return Dialog(
+                                    backgroundColor: Colors.transparent,
+                                    child: Container(
+                                      height: 140,
                                       width: 120,
-                                      child:Lottie.asset("assets/done.json",controller: _donecont,onLoaded: (c){
-                                        _donecont.duration=c.duration;
-                                        _donecont.forward();
-
-                                      })
-                                  )
+                                      child: Lottie.asset(
+                                        "assets/done.json",
+                                        controller: _donecont,
+                                        onLoaded: (c) {
+                                          _donecont.duration = c.duration;
+                                          _donecont.forward();
+                                        },
+                                      ),
+                                    ),
+                                  );
+                                },
                               );
-                            });
-
-
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('❌ Incorrect OTP. Please try again.'),
+                                  backgroundColor: Colors.redAccent,
+                                ),
+                              );
+                            }
                           },
               
                           keyboardType: TextInputType.phone,
@@ -333,12 +345,12 @@ class _meeState extends State<mee> with TickerProviderStateMixin{
               
               
                       }
-                      if(_otp.text==generatedOtp||_otp.text=="1234"){
-
-
-                            Navigator.push(context,MaterialPageRoute(builder: (context)=>dash()));
-
-                      };
+                      if (_otp.text.trim() == generatedOtp) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => dash()),
+                        );
+                      }
               
                       },
                     child: Container(

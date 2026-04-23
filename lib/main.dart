@@ -1,7 +1,7 @@
 import "package:flutter/material.dart";
 import 'login.dart';
 import 'welcome.dart';
-void main() =>runApp(myapp());
+void main() => runApp(myapp());
 
 class myapp extends StatefulWidget {
   const myapp({super.key});
@@ -17,7 +17,6 @@ class _myappState extends State<myapp> {
      title:"Grade Calculator",
       debugShowCheckedModeBanner: false,
       home: hii(),
-
     );
   }
 }
