@@ -10,5 +10,5 @@
 //   flutter run -d chrome --dart-define=API_URL=http://localhost:5000/api
 String url = const String.fromEnvironment(
   'API_URL',
-  defaultValue: 'https://grade-calc-api.onrender.com/api',
+  defaultValue: 'https://grade-calculator-api-y9j4.onrender.com/api',
 );
